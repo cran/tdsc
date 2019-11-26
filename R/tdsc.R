@@ -9,20 +9,32 @@
 #' @param plot If TRUE plots the workings of the coding algorithm
 #' @keywords TDSC
 #' @importFrom graphics abline
+#' @importFrom moments skewness
+#' @importFrom stats var
 #' @export
 #' @examples
 #' library(tuneR)
 #' wave <- readWave(system.file("extdata", "1.wav", package="tdsc"))
 #' t <- tdsc(wave)
+#' t <- tdsc(wave, lag=2, max_D=10)
 
 
 tdsc <- function(
   wave,
-  lag=1,
+  lag=1L,
   coding_matrix = NULL,
   plot=FALSE,
-  max_D=25
+  max_D=25L
 ) {
+  if (typeof(wave) != "S4" | class(wave) != "Wave") {
+    stop("wave must be a Wave object")
+  }
+  if (!is.numeric(lag) | !(lag == as.integer(lag))) {
+    stop("lag must be an integer")
+  }
+  if (!is.numeric(max_D) | !(max_D == as.integer(max_D))) {
+    stop("max_D must be an integer")
+  }
   #set max value for epoch shape based on physical limits of epoch duration
   max_S <- floor(max_D/2)+1
   
@@ -92,6 +104,11 @@ tdsc <- function(
   D_list <-vector(mode="integer", length=v_length)
   S_list <-vector(mode="integer", length=v_length)
   code <- vector(mode="integer", length=v_length)
+  positive <- vector(mode="logical", length=v_length)
+  negative <- vector(mode="logical", length=v_length)
+
+  stdsc_d <- vector(mode="integer", length=v_length)
+  stdsc_s <- vector(mode="integer", length=v_length)
   
   #b_matrix matrix in shape of coding matrix
   b_matrix <- matrix(data=0, nrow=nrow(coding_matrix), ncol=ncol(coding_matrix))
@@ -102,6 +119,15 @@ tdsc <- function(
     i2 <- zc[[i+1]]
     D <- i2 - i1
     S <- sum(neg_maxima[i1:i2]) + sum(pos_minima[i1:i2])
+    stdsc_d[i] <- D
+    stdsc_s[i] <- S
+    if (sum(wave@left[i1:i2]) > 0) {
+      positive[i] <- 1
+      negative[i] <- 0
+    } else {
+      positive[i] <- 0
+      negative[i] <- 1
+    }
     if (D <= nrow(coding_matrix) & S <= ncol(coding_matrix)+1) {
       b_matrix[D,S+1] <- b_matrix[D,S+1] + (1 * multip_matrix[D,S+1])
       code[i] <- coding_matrix[D, S+1]
@@ -132,15 +158,48 @@ tdsc <- function(
     }
   }
   
+  #STDSC - CHANGE TO GET VALUES FROM WAVE
+  positive_minima = stdsc_s * positive
+  negative_maxima = stdsc_s * negative
+  pm <- pos_minima*wave@left
+  nm <- neg_maxima*wave@left
+  
+  stdsc <- list(
+    "meanDuration" = mean(stdsc_d),
+    "maxDuration" = max(stdsc_d),
+    "varD" = var(stdsc_d),
+    "skewD" = skewness(stdsc_d),
+    "posMinMean" = mean(positive_minima),
+    "posMinMax" = max(positive_minima),
+    "posMinVar" = var(positive_minima),
+    "posMinSkew" = skewness(positive_minima),
+    "negMaxMean" = mean(negative_maxima),
+    "negMaxMax" = max(negative_maxima),
+    "negMaxVar" = var(negative_maxima),
+    "negMaxSkew" = skewness(negative_maxima),
+    "maximaMean" = mean(nm),
+    "maximaMin" = min(nm),
+    "maximaMax" = max(nm),
+    "maximaVar" = var(nm),
+    "maximaVar" = skewness(nm),
+    "minimaMean" = mean(pm),
+    "minimaMin" = min(pm),
+    "minimaMax" = max(pm),
+    "minimaVar" = var(pm),
+    "minimaSkew" = skewness(pm)
+  )
+  
   tdsc <- methods::new("tdsc", 
               raw=cbind(D_list, S_list),
+              positive=positive,
               codelist=codelist,
               c_matrix=coding_matrix,
               b_matrix=b_matrix,
               s_matrix=s_matrix, 
               a_matrix=a_matrix,
               epoch_count=length(zc) -1,
-              sample_count=length(wave@left)
+              sample_count=length(wave@left),
+              stdsc=stdsc
   )
   
   return(tdsc)

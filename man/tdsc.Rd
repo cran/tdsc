@@ -4,7 +4,8 @@
 \alias{tdsc}
 \title{Time Domain Signal Coding}
 \usage{
-tdsc(wave, lag = 1, coding_matrix = NULL, plot = FALSE, max_D = 25)
+tdsc(wave, lag = 1L, coding_matrix = NULL, plot = FALSE,
+  max_D = 25L)
 }
 \arguments{
 \item{wave}{A Wave object}
@@ -24,5 +25,6 @@ Performs Time Domain Signal Coding on a Wave object calculating the S-matrix and
 library(tuneR)
 wave <- readWave(system.file("extdata", "1.wav", package="tdsc"))
 t <- tdsc(wave)
+t <- tdsc(wave, lag=2, max_D=10)
 }
 \keyword{TDSC}
